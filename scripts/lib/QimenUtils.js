@@ -1,0 +1,191 @@
+// Adapted from oceanjustinlin/qimen (MIT). See ../vendor/LICENSE.qimen-engine.txt.
+/**
+ * 奇門遁甲通用工具函數模組 (兼容 Vercel Node.js 环境)
+ */
+
+// ============================================================================
+// 1. 引入依賴 (從同级目錄的 constants 模組)
+// ============================================================================
+const {
+    PALACE,
+    ZHONG_SUBSTITUTE,
+    SIX_XUNS,
+    XUN_HEADS,
+    XUN_TO_HEAD,
+    XUN_TO_KONGWANG_DIRECTION
+} = require('./QimenConstants'); // 修改了这里的导入方式，兼容 Node.js
+
+// ============================================================================
+// 陣列旋轉工具
+// ============================================================================
+
+/**
+ * 從指定起點旋轉陣列
+ */
+function rotateArrayFromIndex(array, startIndex) {
+    if (!Array.isArray(array) || array.length === 0) {
+        return [];
+    }
+    
+    const normalizedIndex = startIndex % array.length;
+    return [
+        ...array.slice(normalizedIndex),
+        ...array.slice(0, normalizedIndex)
+    ];
+}
+
+/**
+ * 根據飛布軌跡生成放置順序
+ */
+function generatePutSequence(flyPath, startPalaceIndex) {
+    const pathIndex = flyPath.indexOf(startPalaceIndex);
+    if (pathIndex === -1) {
+        // 若起始宮位不在軌跡中（如中宮），使用替代宮位
+        const substituteIndex = flyPath.indexOf(ZHONG_SUBSTITUTE);
+        return rotateArrayFromIndex(flyPath, substituteIndex);
+    }
+    return rotateArrayFromIndex(flyPath, pathIndex);
+}
+
+/**
+ * 根據飛布軌跡進行旋轉映射 (核心算法)
+ */
+function rotateMapping(sourceArray, flyPath, sourceStartIndex, targetStartIndex) {
+    // 處理中宮替代
+    const normalizedSourceStart = sourceStartIndex === PALACE.ZHONG 
+        ? ZHONG_SUBSTITUTE 
+        : sourceStartIndex;
+    const normalizedTargetStart = targetStartIndex === PALACE.ZHONG 
+        ? ZHONG_SUBSTITUTE 
+        : targetStartIndex;
+    
+    // 生成取值與放置順序
+    const getSequence = generatePutSequence(flyPath, normalizedSourceStart);
+    const putSequence = generatePutSequence(flyPath, normalizedTargetStart);
+    
+    // 執行映射
+    const result = new Array(9).fill('');
+    for (let i = 0; i < getSequence.length; i++) {
+        const sourceIndex = getSequence[i];
+        const targetIndex = putSequence[i];
+        result[targetIndex] = sourceArray[sourceIndex];
+    }
+    
+    // 中宮保持原值
+    result[PALACE.ZHONG] = sourceArray[PALACE.ZHONG];
+    
+    return result;
+}
+
+// ============================================================================
+// 索引轉換工具
+// ============================================================================
+
+function normalizeZhongPalace(index) {
+    return index === PALACE.ZHONG ? ZHONG_SUBSTITUTE : index;
+}
+
+function findIndexWithZhongNormalization(array, element) {
+    const index = array.indexOf(element);
+    return normalizeZhongPalace(index);
+}
+
+// ============================================================================
+// 旬首與符首查詢
+// ============================================================================
+
+/**
+ * 根據干支時辰查詢所屬旬首
+ */
+function getXunHead(ganzhi) {
+    for (const xunHead of XUN_HEADS) {
+        if (SIX_XUNS[xunHead].includes(ganzhi)) {
+            return xunHead;
+        }
+    }
+    return null;
+}
+
+/**
+ * 根據旬首查詢符首
+ */
+function getFuShou(xunHead) {
+    return XUN_TO_HEAD[xunHead];
+}
+
+/**
+ * 計算飛布步數
+ */
+function calculateFlyStep(xunHead, currentTime) {
+    const xunArray = SIX_XUNS[xunHead];
+    if (!xunArray) {
+        return 0;
+    }
+    return xunArray.indexOf(currentTime);
+}
+
+/**
+ * 查詢孤虛方位
+ */
+function getKongWangDirection(ganzhi) {
+    const xunHead = getXunHead(ganzhi);
+    return xunHead ? XUN_TO_KONGWANG_DIRECTION[xunHead] : undefined;
+}
+
+// ============================================================================
+// 天干處理工具
+// ============================================================================
+
+function resolveJiaHiding(tianGan, fuShou) {
+    return tianGan === '甲' ? fuShou : tianGan;
+}
+
+function extractTianGan(ganzhi) {
+    return ganzhi.substring(0, 1);
+}
+
+function extractDiZhi(ganzhi) {
+    return ganzhi.substring(1, 2);
+}
+
+// 天干五行
+const STEM_ELEMENTS = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己: '土', 庚: '金', 辛: '金', 壬: '水', 癸: '水' };
+// X 生 Y
+const GENERATES = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' };
+// X 克 Y
+const CONTROLS = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' };
+
+/**
+ * 天盘干与地盘干的生克方向。
+ * 返回：'天生地' | '天克地' | '地生天' | '地克天' | '比和' | ''（缺干）
+ */
+function getStemRelation(skyStem, earthStem) {
+    const sky = STEM_ELEMENTS[skyStem];
+    const earth = STEM_ELEMENTS[earthStem];
+    if (!sky || !earth) return '';
+    if (sky === earth) return '比和';
+    if (GENERATES[sky] === earth) return '天生地';
+    if (CONTROLS[sky] === earth) return '天克地';
+    if (GENERATES[earth] === sky) return '地生天';
+    if (CONTROLS[earth] === sky) return '地克天';
+    return '';
+}
+
+// ============================================================================
+// 模組導出
+// ============================================================================
+module.exports = {
+    rotateArrayFromIndex,
+    generatePutSequence,
+    rotateMapping,
+    normalizeZhongPalace,
+    findIndexWithZhongNormalization,
+    getXunHead,
+    getFuShou,
+    calculateFlyStep,
+    getKongWangDirection,
+    resolveJiaHiding,
+    extractTianGan,
+    extractDiZhi,
+    getStemRelation
+};

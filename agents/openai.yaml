@@ -1,0 +1,4 @@
+interface:
+  display_name: "奇门上元排盘与推理"
+  short_description: "确定性时家拆补飞盘/转盘排盘与原书来源边界分析"
+  default_prompt: "Use $qimen-shangyuan-reasoning to first determine the event horizon, select a flying or rotating plate without outcome-shopping, generate a deterministic chart, and disclose which rules come from the book versus external calculation code."
